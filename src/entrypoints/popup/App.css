@@ -1,0 +1,38 @@
+/* Popup design tokens (CSS variables) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #1a1b1e;
+  --bg-secondary: #25262b;
+  --bg-tertiary: #2c2e33;
+
+  --text-primary: #e4e5e7;
+  --text-secondary: #909296;
+  --text-muted: #5c5f66;
+
+  --accent: #7c5cff;
+  --accent-hover: #9171ff;
+  --accent-deep: #5e3fd3;
+
+  --accent-rgb: 124 92 255;
+  --success-rgb: 81 207 102;
+  --warning-rgb: 252 196 25;
+  --error-rgb: 255 107 107;
+
+  --border: #373a40;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Ensure the browser action popup can show rounded corners */
+html,
+body {
+  background: transparent;
+}
+
+
