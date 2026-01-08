@@ -30,12 +30,12 @@ export default defineConfig({
     name: 'Engram BETA',
     description:
       'Local-first AI web clipper. THIS EXTENSION IS FOR BETA TESTING',
-    version: '0.1.1',
+    version: '0.1.2',
     options_ui: {
       page: 'options.html',
       open_in_tab: true,
     },
-    permissions: ['activeTab', 'storage', 'contextMenus', 'clipboardWrite'],
+    permissions: ['activeTab', 'storage', 'contextMenus'],
     commands: {
       'clip-page': {
         suggested_key: {
