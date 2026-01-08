@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { ClipResult } from '../hooks';
+import type { ClipResult } from '../hooks/useClip';
 
 interface PreviewModalProps {
   isOpen: boolean;

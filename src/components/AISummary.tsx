@@ -1,4 +1,4 @@
-import type { AIStatus } from '../hooks';
+import type { AIStatus } from '../hooks/useAI';
 
 interface AISummaryProps {
   status: AIStatus;
