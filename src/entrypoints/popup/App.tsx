@@ -2,18 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Settings, Template } from '@lib/types';
 import { getSettings } from '@lib/storage';
 import { DEFAULT_TEMPLATES } from '@lib/templates';
-import { useVault, useAI, useClip, type ClipResult } from '@/hooks';
-import {
-  Header,
-  PageInfo,
-  StatusMessage,
-  AISummary,
-  ClipSettings,
-  VaultSetup,
-  PreviewModal,
-  Footer,
-  Spinner,
-} from '@/components';
+import { useVault } from '@/hooks/useVault';
+import { useAI } from '@/hooks/useAI';
+import { useClip, type ClipResult } from '@/hooks/useClip';
+import { Header } from '@/components/Header';
+import { PageInfo } from '@/components/PageInfo';
+import { StatusMessage } from '@/components/StatusMessage';
+import { AISummary } from '@/components/AISummary';
+import { ClipSettings } from '@/components/ClipSettings';
+import { VaultSetup } from '@/components/VaultSetup';
+import { PreviewModal } from '@/components/PreviewModal';
+import { Footer } from '@/components/Footer';
+import { Spinner } from '@/components/Spinner';
 import './App.css';
 
 interface CurrentPage {
