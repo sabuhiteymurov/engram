@@ -12,7 +12,9 @@ export default defineConfig({
         '@': fileURLToPath(new URL('./src', import.meta.url)),
         '@lib': fileURLToPath(new URL('./src/lib', import.meta.url)),
         '@hooks': fileURLToPath(new URL('./src/hooks', import.meta.url)),
-        '@components': fileURLToPath(new URL('./src/components', import.meta.url)),
+        '@components': fileURLToPath(
+          new URL('./src/components', import.meta.url),
+        ),
       },
     },
   }),
@@ -25,9 +27,10 @@ export default defineConfig({
   },
 
   manifest: {
-    name: 'Engram',
-    description: 'Local-first AI web clipper',
-    version: '0.1.0',
+    name: 'Engram BETA',
+    description:
+      'Local-first AI web clipper. THIS EXTENSION IS FOR BETA TESTING',
+    version: '0.1.1',
     options_ui: {
       page: 'options.html',
       open_in_tab: true,
