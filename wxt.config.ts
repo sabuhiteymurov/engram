@@ -30,19 +30,19 @@ export default defineConfig({
     name: 'Engram BETA',
     description:
       'Local-first AI web clipper. THIS EXTENSION IS FOR BETA TESTING',
-    version: '0.1.2',
+    version: '0.2.0',
     options_ui: {
       page: 'options.html',
       open_in_tab: true,
     },
-    permissions: ['activeTab', 'storage', 'contextMenus'],
+    permissions: ['activeTab', 'storage', 'contextMenus', 'scripting'],
     commands: {
-      'clip-page': {
+      _execute_action: {
         suggested_key: {
-          default: 'Ctrl+Shift+M',
-          mac: 'Command+Shift+M',
+          default: 'Ctrl+Shift+E',
+          mac: 'Command+Shift+E',
         },
-        description: 'Clip current page to markdown',
+        description: 'Open Engram clipper',
       },
     },
     host_permissions: ['<all_urls>'],
