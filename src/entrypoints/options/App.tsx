@@ -64,7 +64,7 @@ export default function App() {
 
       <main className='card'>
         <div className='row'>
-          <div className='label'>Vault</div>
+          <div className='label'>Export Folder</div>
           <div className='value'>
             {status === 'checking'
               ? 'Checking…'
@@ -75,7 +75,7 @@ export default function App() {
         </div>
 
         <button className='btn' onClick={onSelectVault}>
-          Select vault folder
+          Select export folder
         </button>
 
         <button className='btn secondary' onClick={refresh}>

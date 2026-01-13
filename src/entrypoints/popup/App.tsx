@@ -22,7 +22,7 @@ interface CurrentPage {
   siteName: string;
 }
 
-type PendingVaultAction = 'clip' | null;
+type PendingVaultAction = { type: 'clip'; withAI: boolean } | null;
 
 function App() {
   // Page state
@@ -59,20 +59,29 @@ function App() {
         return;
       }
 
-      // Generate AI summary if available
+      // Generate AI summary if available or user wants to trigger download
       let generatedSummary: string | null = null;
       const allowAI = opts?.allowAI ?? true;
-      if (allowAI && ai.status === 'available') {
+      const canUseAI = ai.status === 'available' || ai.status === 'downloading';
+      if (allowAI && canUseAI) {
         setIsSummarizing(true);
-        setStatusMessage('Generating AI summary...');
+        const statusText =
+          ai.status === 'downloading'
+            ? 'Downloading AI model & generating summary (this may take a while)...'
+            : 'Generating AI summary...';
+        setStatusMessage(statusText);
         generatedSummary = await ai.generateSummary(article.textContent);
         setSummary(generatedSummary);
         setIsSummarizing(false);
+        // Recheck availability after using AI (model might now be downloaded)
+        if (ai.status === 'downloading') {
+          ai.recheckAvailability();
+        }
       }
 
       // Check vault handle
       if (!vault.vaultHandle) {
-        setStatusMessage('Error: Please select a vault folder in Settings.');
+        setStatusMessage('Error: Please select a export folder in Settings.');
         return;
       }
 
@@ -125,20 +134,20 @@ function App() {
     }
   }
 
-  // Handle clip action
+  // Handle clip action with AI
   const handleClip = useCallback(async () => {
     setStatusMessage(null);
     setSummary(null);
 
     if (!vault.vaultHandle) {
-      setStatusMessage('Error: Please select a vault folder in Settings.');
+      setStatusMessage('Error: Please select a export folder in Settings.');
       return;
     }
 
     // Gate BEFORE doing any expensive work (extract/AI) so we don't re-run it later.
     if (vault.permission !== 'granted') {
       setShowVaultAccessPrompt(true);
-      setPendingVaultAction('clip');
+      setPendingVaultAction({ type: 'clip', withAI: true });
       setStatusMessage('Please grant vault access to save clips.');
       return;
     }
@@ -148,7 +157,29 @@ function App() {
     await runClipFlow({ allowAI: true });
   }, [runClipFlow, vault.permission, vault.vaultHandle]);
 
-  // Handle preview action
+  // Handle clip action without AI
+  const handleClipWithoutAI = useCallback(async () => {
+    setStatusMessage(null);
+    setSummary(null);
+
+    if (!vault.vaultHandle) {
+      setStatusMessage('Error: Please select a export folder in Settings.');
+      return;
+    }
+
+    if (vault.permission !== 'granted') {
+      setShowVaultAccessPrompt(true);
+      setPendingVaultAction({ type: 'clip', withAI: false });
+      setStatusMessage('Please grant vault access to save clips.');
+      return;
+    }
+
+    setShowVaultAccessPrompt(false);
+    setPendingVaultAction(null);
+    await runClipFlow({ allowAI: false });
+  }, [runClipFlow, vault.permission, vault.vaultHandle]);
+
+  // Handle preview action (uses AI only when readily available)
   const handlePreview = useCallback(async () => {
     setStatusMessage(null);
 
@@ -159,7 +190,7 @@ function App() {
       return;
     }
 
-    // Generate AI summary if available
+    // Generate AI summary only if model is readily available
     let generatedSummary: string | null = null;
     if (ai.status === 'available') {
       setIsSummarizing(true);
@@ -185,7 +216,7 @@ function App() {
     if (!previewResult) return;
 
     if (!vault.vaultHandle) {
-      setStatusMessage('Error: Please select a vault folder.');
+      setStatusMessage('Error: Please select a export folder.');
       setShowPreview(false);
       return;
     }
@@ -245,26 +276,26 @@ function App() {
               vault.permission !== 'granted' && (
                 <div className='rounded-xl border border-border bg-bg-secondary p-4 text-center'>
                   <p className='mb-3 text-[13px] text-text-secondary'>
-                    This extension needs access to your vault folder to save
+                    This extension needs access to your export folder to save
                     clips.
                   </p>
                   <div className='flex gap-2'>
                     <button
                       className='inline-flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
                       onClick={async () => {
-                        setStatusMessage('Requesting vault access...');
+                        setStatusMessage('Requesting folder access...');
                         const granted = await vault.requestPermission();
                         if (granted) {
                           setShowVaultAccessPrompt(false);
                           setStatusMessage(null);
                           const action = pendingVaultAction;
                           setPendingVaultAction(null);
-                          if (action === 'clip') {
-                            await runClipFlow({ allowAI: true });
+                          if (action?.type === 'clip') {
+                            await runClipFlow({ allowAI: action.withAI });
                           }
                         } else {
                           setStatusMessage(
-                            'Vault access is required to save clips. Please grant access.',
+                            'Folder access is required to save clips. Please grant access.',
                           );
                         }
                       }}
@@ -287,6 +318,7 @@ function App() {
               status={ai.status}
               summary={summary}
               isLoading={isSummarizing}
+              onRecheckStatus={ai.recheckAvailability}
             />
 
             <ClipSettings
@@ -297,22 +329,58 @@ function App() {
               onTemplateChange={setSelectedTemplate}
             />
 
-            <button
-              className='mt-auto inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-deep)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-accent-glow transition hover:-translate-y-0.5 hover:shadow-accent-glow-hover active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
-              onClick={handleClip}
-              disabled={isLoading}
-            >
-              <span>
-                {clip.isExtracting
-                  ? 'Extracting...'
-                  : isSummarizing
-                  ? 'Summarizing...'
-                  : clip.isSaving
-                  ? 'Saving...'
-                  : 'Clip to Obsidian'}
-              </span>
-              <span className='text-base'>✨</span>
-            </button>
+            <div className='mt-auto flex flex-col gap-2'>
+              {ai.status === 'available' ? (
+                <button
+                  className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-deep)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-accent-glow transition hover:-translate-y-0.5 hover:shadow-accent-glow-hover active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
+                  onClick={handleClip}
+                  disabled={isLoading}
+                >
+                  <span>
+                    {clip.isExtracting
+                      ? 'Extracting...'
+                      : isSummarizing
+                        ? 'Summarizing...'
+                        : clip.isSaving
+                          ? 'Saving...'
+                          : 'Clip with AI Summary'}
+                  </span>
+                  <span className='text-base'>✨</span>
+                </button>
+              ) : (
+                <>
+                  <button
+                    className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-deep)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-accent-glow transition hover:-translate-y-0.5 hover:shadow-accent-glow-hover active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
+                    onClick={handleClipWithoutAI}
+                    disabled={isLoading}
+                  >
+                    <span>
+                      {clip.isExtracting
+                        ? 'Extracting...'
+                        : clip.isSaving
+                          ? 'Saving...'
+                          : 'Save Clip'}
+                    </span>
+                    <span className='text-base'>📎</span>
+                  </button>
+                  {ai.status === 'downloading' && (
+                    <button
+                      className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-bg-tertiary px-4 py-2.5 text-[13px] font-medium text-text-secondary transition hover:bg-bg-primary active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
+                      onClick={handleClip}
+                      disabled={isLoading}
+                      title='Model will be downloaded (~1-2 GB). This may take several minutes.'
+                    >
+                      <span>
+                        {isSummarizing
+                          ? 'Downloading model & summarizing...'
+                          : 'Try with AI (will download model)'}
+                      </span>
+                      <span className='text-xs'>⬇️</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </>
         )}
       </main>
