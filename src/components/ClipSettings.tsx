@@ -17,7 +17,7 @@ export function ClipSettings({
 }: ClipSettingsProps) {
   return (
     <section className='flex flex-col gap-2 rounded-xl border border-border bg-bg-secondary p-3'>
-      <SettingRow label='📁 Vault:' value={vaultName || 'Not selected'} />
+      <SettingRow label='📁 Export:' value={vaultName || 'Not selected'} />
       <SettingRow label='📂 Folder:' value={folderPath || '/'} />
       <div className='flex items-center justify-between text-[13px]'>
         <span className='text-text-secondary'>📝 Template:</span>
