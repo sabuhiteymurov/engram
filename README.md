@@ -4,9 +4,9 @@ Local-first AI web clipper browser extension - clip, summarize, and organize web
 
 ## Features
 
-- **One-Click Article Clipping** - Browser action, keyboard shortcut (Ctrl+Shift+M), context menus
+- **One-Click Article Clipping** - Browser action, keyboard shortcut (Ctrl+Shift+E), context menus
 - **Local AI Processing** - Uses Chrome's built-in Gemini Nano for summaries and analysis
-- **Direct File Saving** - Save markdown files directly to your Obsidian vault using File System Access API
+- **Direct File Saving** - Save markdown files directly to any folder using File System Access API (works great with Obsidian, Logseq, or any markdown-based workflow)
 - **Smart Templates** - Pre-built templates for articles, recipes, research papers, videos, documentation, threads
 - **Metadata Extraction** - Auto-detect author, published date, reading time, tags
 
