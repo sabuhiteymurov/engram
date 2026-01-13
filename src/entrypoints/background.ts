@@ -5,7 +5,7 @@ export default defineBackground(() => {
     // Context menu for page
     browser.contextMenus.create({
       id: 'clip-page',
-      title: 'Clip to Obsidian',
+      title: 'Clip Page',
       contexts: ['page'],
     });
 
@@ -32,18 +32,6 @@ export default defineBackground(() => {
         action: 'clipSelection',
         selectedText: info.selectionText,
       });
-    }
-  });
-
-  // Handle keyboard shortcut
-  browser.commands.onCommand.addListener(async (command) => {
-    if (command === 'clip-page') {
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) {
-        await browser.tabs.sendMessage(tab.id, {
-          action: 'clipPage',
-        });
-      }
     }
   });
 
