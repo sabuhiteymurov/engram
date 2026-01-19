@@ -2,7 +2,13 @@
 import TurndownService from 'turndown';
 // @ts-expect-error - turndown-plugin-gfm has no type definitions
 import { gfm } from 'turndown-plugin-gfm';
-import type { ClippedContent, ExtractedArticle, Template } from './types';
+import type {
+  ClippedContent,
+  ExtractedArticle,
+  Template,
+  ProductInfo,
+  ReviewSynthesis,
+} from './types';
 
 function createTurndownService(): TurndownService {
   const turndown = new TurndownService({
@@ -153,4 +159,100 @@ type: selection
 ---
 *Clipped from [${pageTitle}](${url}) on ${date}*
 `;
+}
+
+/**
+ * Generate markdown for a review synthesis
+ */
+export function generateReviewMarkdown(
+  product: ProductInfo,
+  synthesis: ReviewSynthesis,
+): string {
+  const date = new Date().toISOString().split('T')[0];
+  const parts: string[] = [];
+
+  // Frontmatter
+  parts.push('---');
+  parts.push(`title: "Review Synthesis: ${product.title.replace(/"/g, '\\"')}"`);
+  parts.push(`source: "${product.url}"`);
+  if (product.asin) parts.push(`asin: "${product.asin}"`);
+  if (product.price) parts.push(`price: "${product.price}"`);
+  if (product.rating) parts.push(`rating: ${product.rating}`);
+  parts.push(`sentiment_score: ${synthesis.sentimentScore}`);
+  parts.push(`reviews_analyzed: ${synthesis.reviewsAnalyzed}`);
+  parts.push(`clipped: ${new Date().toISOString()}`);
+  parts.push(`type: review-synthesis`);
+  parts.push('tags: [product-review, purchase-decision]');
+  parts.push('---');
+  parts.push('');
+
+  // Title
+  parts.push(`# ${product.title}`);
+  parts.push('');
+
+  // Product info
+  if (product.price || product.rating) {
+    const infoParts: string[] = [];
+    if (product.price) infoParts.push(`**Price:** ${product.price}`);
+    if (product.rating) infoParts.push(`**Rating:** ${product.rating}/5`);
+    parts.push(infoParts.join(' | '));
+    parts.push('');
+  }
+
+  // Verdict
+  parts.push('## The Verdict');
+  parts.push('');
+  parts.push(`> ${synthesis.verdict}`);
+  parts.push('');
+  parts.push(`**Sentiment Score:** ${synthesis.sentimentScore}% (based on ${synthesis.reviewsAnalyzed} reviews)`);
+  parts.push('');
+
+  // Pros
+  if (synthesis.pros.length > 0) {
+    parts.push('## ✅ Pros');
+    parts.push('');
+    for (const pro of synthesis.pros) {
+      parts.push(`- ${pro.point}`);
+    }
+    parts.push('');
+  }
+
+  // Cons
+  if (synthesis.cons.length > 0) {
+    parts.push('## ❌ Cons');
+    parts.push('');
+    for (const con of synthesis.cons) {
+      parts.push(`- ${con.point}`);
+    }
+    parts.push('');
+  }
+
+  // Quality Alerts
+  if (synthesis.qualityAlerts.length > 0) {
+    parts.push('## ⚠️ Quality Alerts');
+    parts.push('');
+    for (const alert of synthesis.qualityAlerts) {
+      const icon = alert.severity === 'critical' ? '🚨' : '⚠️';
+      parts.push(`- ${icon} ${alert.issue}`);
+    }
+    parts.push('');
+  }
+
+  // Footer
+  parts.push('---');
+  parts.push(`*Synthesized from [Amazon](${product.url}) on ${date}*`);
+
+  return parts.join('\n');
+}
+
+/**
+ * Generate a sanitized filename for review synthesis
+ */
+export function generateReviewFilename(productTitle: string): string {
+  const date = new Date().toISOString().split('T')[0];
+  const sanitized = productTitle
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .slice(0, 50);
+  return `${date}-review-${sanitized}`;
 }
