@@ -6,15 +6,30 @@ Local-first AI web clipper browser extension - clip, summarize, and organize web
 
 - **One-Click Article Clipping** - Browser action, keyboard shortcut (Ctrl+Shift+E), context menus
 - **Local AI Processing** - Uses Chrome's built-in Gemini Nano for summaries and analysis
+- **Review Synthesis** - Analyze Amazon product reviews and get AI-powered pros/cons/quality alerts
 - **Direct File Saving** - Save markdown files directly to any folder using File System Access API (works great with Obsidian, Logseq, or any markdown-based workflow)
 - **Smart Templates** - Pre-built templates for articles, recipes, research papers, videos, documentation, threads
 - **Metadata Extraction** - Auto-detect author, published date, reading time, tags
+
+## Review Synthesis
+
+When you visit an Amazon product page, Engram automatically detects it and offers to synthesize reviews:
+
+1. **Detection** - A shopping badge appears on the extension icon when on Amazon product pages
+2. **Synthesis** - Click "Synthesize Reviews" to analyze up to 20 reviews using progressive AI batching
+3. **Structured Output** - Get a verdict, pros/cons list, sentiment score, and quality alerts
+4. **Export** - Copy as markdown or save directly to your vault
+
+Supported pages:
+- Amazon product pages (`amazon.com/dp/...`)
+- Amazon review pages (`amazon.com/product-reviews/...`)
 
 ## Tech Stack
 
 - [WXT](https://wxt.dev/) - Web Extension framework
 - [React](https://react.dev/) - UI library
 - [TypeScript](https://www.typescriptlang.org/) - Type safety
+- [Tailwind CSS](https://tailwindcss.com/) - Styling
 - [@mozilla/readability](https://github.com/mozilla/readability) - Article extraction
 - [Turndown](https://github.com/mixmark-io/turndown) - HTML to Markdown conversion
 - [DOMPurify](https://github.com/cure53/DOMPurify) - HTML sanitization
@@ -25,8 +40,8 @@ Local-first AI web clipper browser extension - clip, summarize, and organize web
 engram-web-extension/
 ├── src/
 │   ├── entrypoints/
-│   │   ├── background.ts      # Service worker - context menus, commands
-│   │   ├── content.ts         # Content script - article extraction
+│   │   ├── background.ts      # Service worker - context menus, commands, badge
+│   │   ├── content.ts         # Content script - article/review extraction
 │   │   ├── popup/             # Extension popup UI
 │   │   │   ├── App.tsx
 │   │   │   ├── App.css
@@ -39,8 +54,22 @@ engram-web-extension/
 │   │       ├── main.tsx
 │   │       └── style.css
 │   ├── components/            # React UI components
-│   ├── hooks/                 # React hooks (vault/clip/AI)
-│   ├── lib/                   # Core logic (AI, extractor, markdown, storage, filesystem)
+│   │   ├── ReviewSynthesis.tsx  # Review synthesis results panel
+│   │   ├── Spinner.tsx          # Loading states
+│   │   └── ...
+│   ├── hooks/                 # React hooks
+│   │   ├── useReviewSynthesis.ts  # Review synthesis orchestration
+│   │   ├── useVault.ts
+│   │   ├── useClip.ts
+│   │   └── useAI.ts
+│   ├── lib/                   # Core logic
+│   │   ├── ai.ts              # AI session management & synthesis
+│   │   ├── prompts.ts         # Centralized AI prompts
+│   │   ├── reviewExtractor.ts # Amazon review extraction
+│   │   ├── extractor.ts       # Article extraction
+│   │   ├── markdown.ts        # Markdown generation
+│   │   ├── storage.ts         # Browser storage
+│   │   └── filesystem.ts      # File System Access API
 │   └── assets/
 ├── public/
 │   └── icon/              # Extension icons
@@ -78,7 +107,7 @@ bun run zip
 
 Engram uses **Chrome's built-in Prompt API (Gemini Nano)** for on-device summarization/tagging. This is **optional** — the extension works without AI enabled.
 
-Chrome sometimes won’t download the model until the relevant flags are enabled and you manually trigger the component update. The steps below walk you through enabling the flags and forcing the model download.
+Chrome sometimes won't download the model until the relevant flags are enabled and you manually trigger the component update. The steps below walk you through enabling the flags and forcing the model download.
 
 ### 1) Enable the Chrome flags
 
@@ -86,7 +115,7 @@ Chrome sometimes won’t download the model until the relevant flags are enabled
 2. In the search box, enable these flags:
    - `chrome://flags/#prompt-api-for-gemini-nano` → **Enabled**
    - `chrome://flags/#optimization-guide-on-device-model` → **Enabled BypassPerfRequirement**
-     - If you don’t see “BypassPerfRequirement”, pick **Enabled**
+     - If you don't see "BypassPerfRequirement", pick **Enabled**
 3. Click **Relaunch** (or fully quit and reopen Chrome).
 
 ### 2) Download the on-device model via chrome://components
@@ -95,14 +124,14 @@ Chrome sometimes won’t download the model until the relevant flags are enabled
 2. Find **Optimization Guide On Device Model**
 3. Click **Check for update**
 4. Keep Chrome open while it downloads (this can take a while and may require multiple minutes; the model can be several GB depending on your Chrome version).
-5. When the status shows it’s up to date, **restart Chrome** one more time.
+5. When the status shows it's up to date, **restart Chrome** one more time.
 
 ### 3) Verify the model is installed (recommended)
 
 - **Check internal status UI**:
 
   - Open `chrome://on-device-internals`
-  - Look for **Model Status** and confirm it’s downloaded/ready
+  - Look for **Model Status** and confirm it's downloaded/ready
 
 - **Check in DevTools console**:
   - Open DevTools → Console and run:
@@ -121,15 +150,33 @@ You should see **`"available"`** once the model is ready. If you see **`"downloa
 
 ### Troubleshooting
 
-- **“Optimization Guide On Device Model” is missing in `chrome://components`**:
+- **"Optimization Guide On Device Model" is missing in `chrome://components`**:
   - Ensure both flags above are enabled, then restart Chrome and check again.
-- **Availability stays “unavailable”**:
-  - Confirm you’re on **Chrome 127+**
+- **Availability stays "unavailable"**:
+  - Confirm you're on **Chrome 127+**
   - Use **Enabled BypassPerfRequirement** for `#optimization-guide-on-device-model`
   - Restart Chrome after the component finishes downloading
 - **The model download never starts**:
   - Keep Chrome open on `chrome://components` and try **Check for update** again after a minute
   - Check `chrome://on-device-internals` → **Model Status** for progress/errors
+
+## Changelog
+
+### v0.3.0
+- **New: Review Synthesis** - Analyze Amazon product reviews with AI
+  - Automatic detection of Amazon product and review pages
+  - Progressive batching for analyzing up to 20 reviews
+  - Structured output: verdict, pros, cons, quality alerts, sentiment score
+  - Export as markdown or save to vault
+- **Improved: Loading screen** - New branded loading experience with Engram logo
+- **Improved: Code organization** - Centralized AI prompts for easier maintenance
+- **Removed: Page info badge** - Cleaner UI without redundant page information
+
+### v0.2.0
+- Initial beta release
+- Article clipping with AI summaries
+- Direct file saving to local folders
+- Smart templates
 
 ## License
 
