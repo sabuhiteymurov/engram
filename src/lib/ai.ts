@@ -1,5 +1,10 @@
-// Chrome's built-in Gemini Nano AI integration
 import type { AISession } from './types';
+import {
+  SYSTEM_PROMPTS,
+  USER_PROMPTS,
+  SUMMARY_LENGTHS,
+  type SummaryLength,
+} from './prompts';
 
 type OutputLanguage = 'en';
 const OUTPUT_LANGUAGE: OutputLanguage = 'en';
@@ -68,16 +73,14 @@ export async function checkAIAvailability(): Promise<AIAvailability> {
 export async function createAISession(
   systemPrompt?: string,
 ): Promise<AISession | null> {
-  const defaultPrompt =
-    systemPrompt ||
-    'You are a helpful assistant that summarizes and analyzes web content.';
+  const prompt = systemPrompt || SYSTEM_PROMPTS.DEFAULT;
 
   try {
     // Try new LanguageModel API first
     if (window.LanguageModel?.create) {
       console.log('[Engram AI] Creating LanguageModel session...');
       return await window.LanguageModel.create({
-        systemPrompt: defaultPrompt,
+        systemPrompt: prompt,
         outputLanguage: OUTPUT_LANGUAGE,
       });
     }
@@ -86,7 +89,7 @@ export async function createAISession(
     if (window.ai?.languageModel?.create) {
       console.log('[Engram AI] Creating ai.languageModel session...');
       return await window.ai.languageModel.create({
-        systemPrompt: defaultPrompt,
+        systemPrompt: prompt,
       });
     }
 
@@ -100,16 +103,12 @@ export async function createAISession(
 
 export async function generateSummary(
   content: string,
-  length: 'short' | 'medium' | 'long' = 'medium',
+  length: SummaryLength = 'medium',
 ): Promise<string | null> {
-  const lengthInstructions = {
-    short: '2-3 sentences',
-    medium: '3-5 sentences',
-    long: '5-7 sentences',
-  };
+  const lengthInstruction = SUMMARY_LENGTHS[length];
 
   const session = await createAISession(
-    `You summarize articles concisely. Provide ${lengthInstructions[length]} summaries.`,
+    SYSTEM_PROMPTS.SUMMARIZER(lengthInstruction),
   );
 
   if (!session) {
@@ -117,9 +116,7 @@ export async function generateSummary(
   }
 
   try {
-    const prompt = `Summarize this article in ${
-      lengthInstructions[length]
-    }:\n\n${content.slice(0, 8000)}`;
+    const prompt = USER_PROMPTS.summarize(content, lengthInstruction);
     const summary = await session.prompt(prompt);
     return summary;
   } catch (err) {
@@ -131,19 +128,14 @@ export async function generateSummary(
 }
 
 export async function extractKeyTakeaways(content: string): Promise<string[]> {
-  const session = await createAISession(
-    'You extract key takeaways from articles as bullet points. Return only the bullet points, one per line.',
-  );
+  const session = await createAISession(SYSTEM_PROMPTS.KEY_TAKEAWAYS);
 
   if (!session) {
     return [];
   }
 
   try {
-    const prompt = `Extract 3-5 key takeaways from this article:\n\n${content.slice(
-      0,
-      8000,
-    )}`;
+    const prompt = USER_PROMPTS.extractKeyTakeaways(content);
     const result = await session.prompt(prompt);
     return result
       .split('\n')
@@ -157,19 +149,14 @@ export async function extractKeyTakeaways(content: string): Promise<string[]> {
 }
 
 export async function suggestTags(content: string): Promise<string[]> {
-  const session = await createAISession(
-    'You suggest relevant tags for articles. Return only lowercase tags separated by commas.',
-  );
+  const session = await createAISession(SYSTEM_PROMPTS.TAG_SUGGESTER);
 
   if (!session) {
     return [];
   }
 
   try {
-    const prompt = `Suggest 3-5 relevant tags for this article:\n\n${content.slice(
-      0,
-      4000,
-    )}`;
+    const prompt = USER_PROMPTS.suggestTags(content);
     const result = await session.prompt(prompt);
     return result
       .split(',')
@@ -189,7 +176,7 @@ export async function suggestTags(content: string): Promise<string[]> {
 
 export async function runCustomPrompt(
   content: string,
-  prompt: string,
+  userPrompt: string,
 ): Promise<string | null> {
   const session = await createAISession();
 
@@ -198,11 +185,221 @@ export async function runCustomPrompt(
   }
 
   try {
-    const fullPrompt = `${prompt}\n\nContent:\n${content.slice(0, 8000)}`;
+    const fullPrompt = USER_PROMPTS.customPrompt(content, userPrompt);
     return await session.prompt(fullPrompt);
   } catch {
     return null;
   } finally {
     session.destroy();
   }
+}
+
+// ============================================
+// Review Synthesis (Progressive Batching)
+// ============================================
+
+import type {
+  ExtractedReview,
+  ReviewSynthesis,
+  SynthesizedPro,
+  SynthesizedCon,
+  QualityAlert,
+} from './types';
+
+const REVIEWS_PER_BATCH = 5;
+
+interface BatchResult {
+  pros: string[];
+  cons: string[];
+  issues: string[];
+}
+
+/**
+ * Analyze a batch of reviews and extract pros, cons, and issues
+ */
+async function analyzeBatch(reviews: ExtractedReview[]): Promise<BatchResult | null> {
+  const session = await createAISession(SYSTEM_PROMPTS.REVIEW_ANALYZER);
+
+  if (!session) return null;
+
+  try {
+    const reviewsText = reviews
+      .map((r, i) => `Review ${i + 1} (${r.rating}★${r.isVerified ? ', verified' : ''}): ${r.text}`)
+      .join('\n\n');
+
+    const prompt = USER_PROMPTS.analyzeReviewBatch(reviewsText);
+    const result = await session.prompt(prompt);
+    
+    // Parse JSON response
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      pros: Array.isArray(parsed.pros) ? parsed.pros : [],
+      cons: Array.isArray(parsed.cons) ? parsed.cons : [],
+      issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+    };
+  } catch (err) {
+    console.error('[Engram AI] Batch analysis error:', err);
+    return null;
+  } finally {
+    session.destroy();
+  }
+}
+
+/**
+ * Merge multiple batch results into final synthesis
+ */
+async function mergeBatchResults(
+  batchResults: BatchResult[],
+  productTitle: string,
+  totalReviews: number,
+): Promise<ReviewSynthesis | null> {
+  const session = await createAISession(SYSTEM_PROMPTS.REVIEW_SYNTHESIZER);
+
+  if (!session) return null;
+
+  try {
+    // Collect all points from batches
+    const allPros = batchResults.flatMap(b => b.pros);
+    const allCons = batchResults.flatMap(b => b.cons);
+    const allIssues = batchResults.flatMap(b => b.issues);
+
+    const prompt = USER_PROMPTS.synthesizeReviews(
+      productTitle,
+      allPros,
+      allCons,
+      allIssues,
+    );
+
+    const result = await session.prompt(prompt);
+    
+    // Parse JSON response
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    
+    const parsed = JSON.parse(jsonMatch[0]);
+    
+    return {
+      verdict: parsed.verdict || 'Unable to generate verdict',
+      sentimentScore: Math.min(100, Math.max(0, parsed.sentimentScore || 50)),
+      pros: (parsed.pros || []).map((p: SynthesizedPro | string) => 
+        typeof p === 'string' ? { point: p, frequency: 1 } : p
+      ),
+      cons: (parsed.cons || []).map((c: SynthesizedCon | string) => 
+        typeof c === 'string' ? { point: c, frequency: 1 } : c
+      ),
+      qualityAlerts: (parsed.qualityAlerts || []).filter(
+        (a: QualityAlert) => a.issue && a.severity
+      ),
+      reviewsAnalyzed: totalReviews,
+    };
+  } catch (err) {
+    console.error('[Engram AI] Merge error:', err);
+    return null;
+  } finally {
+    session.destroy();
+  }
+}
+
+export interface SynthesisProgress {
+  stage: 'extracting' | 'analyzing' | 'merging' | 'complete' | 'error';
+  current: number;
+  total: number;
+  message: string;
+}
+
+export type ProgressCallback = (progress: SynthesisProgress) => void;
+
+/**
+ * Synthesize reviews using progressive batching
+ */
+export async function synthesizeReviews(
+  reviews: ExtractedReview[],
+  productTitle: string,
+  onProgress?: ProgressCallback,
+): Promise<ReviewSynthesis | null> {
+  if (reviews.length === 0) {
+    onProgress?.({
+      stage: 'error',
+      current: 0,
+      total: 0,
+      message: 'No reviews to analyze',
+    });
+    return null;
+  }
+
+  // Limit to top reviews to fit context window
+  const reviewsToAnalyze = reviews.slice(0, 20);
+  const totalBatches = Math.ceil(reviewsToAnalyze.length / REVIEWS_PER_BATCH);
+
+  onProgress?.({
+    stage: 'analyzing',
+    current: 0,
+    total: totalBatches,
+    message: `Analyzing ${reviewsToAnalyze.length} reviews...`,
+  });
+
+  // Process reviews in batches
+  const batchResults: BatchResult[] = [];
+  
+  for (let i = 0; i < reviewsToAnalyze.length; i += REVIEWS_PER_BATCH) {
+    const batch = reviewsToAnalyze.slice(i, i + REVIEWS_PER_BATCH);
+    const batchNum = Math.floor(i / REVIEWS_PER_BATCH) + 1;
+
+    onProgress?.({
+      stage: 'analyzing',
+      current: batchNum,
+      total: totalBatches,
+      message: `Analyzing batch ${batchNum}/${totalBatches}...`,
+    });
+
+    const result = await analyzeBatch(batch);
+    if (result) {
+      batchResults.push(result);
+    }
+  }
+
+  if (batchResults.length === 0) {
+    onProgress?.({
+      stage: 'error',
+      current: 0,
+      total: 0,
+      message: 'Failed to analyze reviews',
+    });
+    return null;
+  }
+
+  // Merge batch results
+  onProgress?.({
+    stage: 'merging',
+    current: totalBatches,
+    total: totalBatches,
+    message: 'Synthesizing final verdict...',
+  });
+
+  const synthesis = await mergeBatchResults(
+    batchResults,
+    productTitle,
+    reviewsToAnalyze.length,
+  );
+
+  if (synthesis) {
+    onProgress?.({
+      stage: 'complete',
+      current: totalBatches,
+      total: totalBatches,
+      message: 'Analysis complete',
+    });
+  } else {
+    onProgress?.({
+      stage: 'error',
+      current: 0,
+      total: 0,
+      message: 'Failed to synthesize results',
+    });
+  }
+
+  return synthesis;
 }
