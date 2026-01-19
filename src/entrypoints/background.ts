@@ -1,4 +1,6 @@
 // Engram Background Service Worker
+import { isAmazonProductUrl } from '../lib/reviewExtractor';
+
 export default defineBackground(() => {
   // Create context menus on install
   browser.runtime.onInstalled.addListener(() => {
@@ -18,6 +20,33 @@ export default defineBackground(() => {
 
     console.log('Engram: Context menus created');
   });
+
+  // Update badge when tab URL changes
+  browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.url || changeInfo.status === 'complete') {
+      updateBadgeForTab(tabId, tab.url);
+    }
+  });
+
+  // Update badge when switching tabs
+  browser.tabs.onActivated.addListener(async (activeInfo) => {
+    const tab = await browser.tabs.get(activeInfo.tabId);
+    updateBadgeForTab(activeInfo.tabId, tab.url);
+  });
+
+  function updateBadgeForTab(tabId: number, url: string | undefined) {
+    if (!url) {
+      browser.action.setBadgeText({ text: '', tabId });
+      return;
+    }
+
+    if (isAmazonProductUrl(url)) {
+      browser.action.setBadgeText({ text: '🛒', tabId });
+      browser.action.setBadgeBackgroundColor({ color: '#7c5cff', tabId });
+    } else {
+      browser.action.setBadgeText({ text: '', tabId });
+    }
+  }
 
   // Handle context menu clicks
   browser.contextMenus.onClicked.addListener(async (info, tab) => {

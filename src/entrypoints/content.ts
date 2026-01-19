@@ -1,6 +1,7 @@
 // Engram Content Script - Article Extraction (runs in ISOLATED world)
 import { extractArticle, extractSelection } from '../lib/extractor';
-import type { ExtractedArticle } from '../lib/types';
+import { extractProductPage, detectPageType } from '../lib/reviewExtractor';
+import type { ExtractedArticle, ExtractedProductPage, PageType } from '../lib/types';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -37,10 +38,57 @@ export default defineContentScript({
         return false;
       }
 
+      if (message.action === 'getPageType') {
+        const pageType = detectPageType(window.location.href);
+        sendResponse({ pageType });
+        return false;
+      }
+
+      if (message.action === 'extractProductPage') {
+        handleExtractProductPage().then((result) => {
+          sendResponse(result);
+        });
+        return true; // Keep channel open for async response
+      }
+
       return false;
     });
   },
 });
+
+async function handleExtractProductPage(): Promise<{
+  success: boolean;
+  data?: ExtractedProductPage;
+  error?: string;
+}> {
+  try {
+    const result = extractProductPage(document, window.location.href);
+
+    if (!result) {
+      return {
+        success: false,
+        error: 'Could not extract product information from this page',
+      };
+    }
+
+    console.log(
+      '[Engram Content] Product extracted:',
+      result.product.title,
+      `(${result.reviews.length} reviews)`,
+    );
+
+    return {
+      success: true,
+      data: result,
+    };
+  } catch (error) {
+    console.error('[Engram Content] Product extraction error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
 
 async function handleExtractArticle(): Promise<{
   success: boolean;

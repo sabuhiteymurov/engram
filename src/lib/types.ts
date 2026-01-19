@@ -72,6 +72,57 @@ export interface ClipRequest {
   selectedText?: string;
 }
 
+// Review Synthesis Types
+
+export type PageType = 'article' | 'product' | 'unknown';
+
+export interface ProductInfo {
+  title: string;
+  price: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  asin: string | null;
+  url: string;
+  imageUrl: string | null;
+}
+
+export interface ExtractedReview {
+  text: string;
+  rating: number;
+  title: string | null;
+  helpfulCount: number;
+  isVerified: boolean;
+}
+
+export interface ExtractedProductPage {
+  product: ProductInfo;
+  reviews: ExtractedReview[];
+}
+
+export interface SynthesizedPro {
+  point: string;
+  frequency: number; // How many reviews mentioned this
+}
+
+export interface SynthesizedCon {
+  point: string;
+  frequency: number;
+}
+
+export interface QualityAlert {
+  issue: string;
+  severity: 'warning' | 'critical';
+}
+
+export interface ReviewSynthesis {
+  verdict: string;
+  sentimentScore: number; // 0-100
+  pros: SynthesizedPro[];
+  cons: SynthesizedCon[];
+  qualityAlerts: QualityAlert[];
+  reviewsAnalyzed: number;
+}
+
 // File System Access API type augmentations
 declare global {
   interface FileSystemDirectoryHandle {
