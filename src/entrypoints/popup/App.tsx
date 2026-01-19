@@ -5,15 +5,16 @@ import { DEFAULT_TEMPLATES } from '@lib/templates';
 import { useVault } from '@/hooks/useVault';
 import { useAI } from '@/hooks/useAI';
 import { useClip, type ClipResult } from '@/hooks/useClip';
+import { useReviewSynthesis } from '@/hooks/useReviewSynthesis';
 import { Header } from '@/components/Header';
-import { PageInfo } from '@/components/PageInfo';
 import { StatusMessage } from '@/components/StatusMessage';
 import { AISummary } from '@/components/AISummary';
 import { ClipSettings } from '@/components/ClipSettings';
 import { VaultSetup } from '@/components/VaultSetup';
 import { PreviewModal } from '@/components/PreviewModal';
+import { ReviewSynthesisPanel } from '@/components/ReviewSynthesis';
 import { Footer } from '@/components/Footer';
-import { Spinner } from '@/components/Spinner';
+import { BrandedLoader } from '@/components/Spinner';
 import './App.css';
 
 interface CurrentPage {
@@ -45,10 +46,10 @@ function App() {
   const [pendingVaultAction, setPendingVaultAction] =
     useState<PendingVaultAction>(null);
 
-  // Custom hooks
   const vault = useVault();
   const ai = useAI();
   const clip = useClip();
+  const reviewSynthesis = useReviewSynthesis();
 
   const runClipFlow = useCallback(
     async (opts?: { allowAI?: boolean }) => {
@@ -123,6 +124,9 @@ function App() {
           siteName: url.hostname.replace('www.', ''),
         });
       }
+
+      // Detect page type (article vs product)
+      await reviewSynthesis.detectPageType();
 
       // Load settings
       const loadedSettings = await getSettings();
@@ -243,13 +247,9 @@ function App() {
     }
   }, [previewResult, vault, clip]);
 
-  // Loading state
+  // Loading state - show branded loader
   if (isInitializing) {
-    return (
-      <div className='flex min-h-[500px] flex-col'>
-        <Spinner text='Loading...' />
-      </div>
-    );
+    return <BrandedLoader />;
   }
 
   // Determine if we need vault setup
@@ -261,11 +261,45 @@ function App() {
       <Header onSettingsClick={vault.openSettings} />
 
       <main className='flex flex-1 flex-col gap-4 p-4'>
-        {currentPage && (
-          <PageInfo title={currentPage.title} siteName={currentPage.siteName} />
-        )}
-
         {statusMessage && <StatusMessage message={statusMessage} />}
+
+        {/* Product Page: Show Review Synthesis */}
+        {reviewSynthesis.pageType === 'product' && (
+          <ReviewSynthesisPanel
+            product={reviewSynthesis.product}
+            synthesis={reviewSynthesis.synthesis}
+            progress={reviewSynthesis.progress}
+            isLoading={reviewSynthesis.isLoading}
+            error={reviewSynthesis.error}
+            onSynthesize={reviewSynthesis.runSynthesis}
+            onCopy={reviewSynthesis.copyToClipboard}
+            onSave={
+              vault.vaultHandle && reviewSynthesis.synthesis
+                ? async () => {
+                    if (!vault.vaultHandle) return false;
+
+                    // Request permission if needed
+                    if (vault.permission !== 'granted') {
+                      const granted = await vault.requestPermission();
+                      if (!granted) {
+                        setStatusMessage('Vault access is required to save.');
+                        return false;
+                      }
+                    }
+
+                    const success = await reviewSynthesis.saveToVault(vault.vaultHandle);
+                    if (success) {
+                      const filename = reviewSynthesis.getFilename();
+                      setStatusMessage(`✅ Saved: ${filename}.md`);
+                    } else {
+                      setStatusMessage('Error: Failed to save file');
+                    }
+                    return success;
+                  }
+                : undefined
+            }
+          />
+        )}
 
         {needsVaultSetup ? (
           <VaultSetup onSelectVault={vault.openSettings} />
