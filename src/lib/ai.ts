@@ -206,6 +206,8 @@ import type {
   QualityAlert,
 } from './types';
 
+import { extractJSON } from './utils';
+
 const REVIEWS_PER_BATCH = 5;
 
 interface BatchResult {
@@ -230,11 +232,10 @@ async function analyzeBatch(reviews: ExtractedReview[]): Promise<BatchResult | n
     const prompt = USER_PROMPTS.analyzeReviewBatch(reviewsText);
     const result = await session.prompt(prompt);
     
-    // Parse JSON response
-    const jsonMatch = result.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
+    // Parse JSON response using robust extraction
+    const parsed = extractJSON<{ pros?: string[]; cons?: string[]; issues?: string[] }>(result);
+    if (!parsed) return null;
     
-    const parsed = JSON.parse(jsonMatch[0]);
     return {
       pros: Array.isArray(parsed.pros) ? parsed.pros : [],
       cons: Array.isArray(parsed.cons) ? parsed.cons : [],
@@ -275,23 +276,29 @@ async function mergeBatchResults(
 
     const result = await session.prompt(prompt);
     
-    // Parse JSON response
-    const jsonMatch = result.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
+    // Parse JSON response using robust extraction
+    interface SynthesisResponse {
+      verdict?: string;
+      sentimentScore?: number;
+      pros?: (SynthesizedPro | string)[];
+      cons?: (SynthesizedCon | string)[];
+      qualityAlerts?: QualityAlert[];
+    }
     
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = extractJSON<SynthesisResponse>(result);
+    if (!parsed) return null;
     
     return {
       verdict: parsed.verdict || 'Unable to generate verdict',
       sentimentScore: Math.min(100, Math.max(0, parsed.sentimentScore || 50)),
-      pros: (parsed.pros || []).map((p: SynthesizedPro | string) => 
+      pros: (parsed.pros || []).map((p) => 
         typeof p === 'string' ? { point: p, frequency: 1 } : p
       ),
-      cons: (parsed.cons || []).map((c: SynthesizedCon | string) => 
+      cons: (parsed.cons || []).map((c) => 
         typeof c === 'string' ? { point: c, frequency: 1 } : c
       ),
       qualityAlerts: (parsed.qualityAlerts || []).filter(
-        (a: QualityAlert) => a.issue && a.severity
+        (a) => a.issue && a.severity
       ),
       reviewsAnalyzed: totalReviews,
     };
