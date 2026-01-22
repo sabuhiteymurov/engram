@@ -60,24 +60,15 @@ function App() {
         return;
       }
 
-      // Generate AI summary if available or user wants to trigger download
+      // Generate AI summary if available
       let generatedSummary: string | null = null;
       const allowAI = opts?.allowAI ?? true;
-      const canUseAI = ai.status === 'available' || ai.status === 'downloading';
-      if (allowAI && canUseAI) {
+      if (allowAI && ai.status === 'available') {
         setIsSummarizing(true);
-        const statusText =
-          ai.status === 'downloading'
-            ? 'Downloading AI model & generating summary (this may take a while)...'
-            : 'Generating AI summary...';
-        setStatusMessage(statusText);
+        setStatusMessage('Generating AI summary...');
         generatedSummary = await ai.generateSummary(article.textContent);
         setSummary(generatedSummary);
         setIsSummarizing(false);
-        // Recheck availability after using AI (model might now be downloaded)
-        if (ai.status === 'downloading') {
-          ai.recheckAvailability();
-        }
       }
 
       // Check vault handle
@@ -352,7 +343,9 @@ function App() {
               status={ai.status}
               summary={summary}
               isLoading={isSummarizing}
+              downloadProgress={ai.downloadProgress}
               onRecheckStatus={ai.recheckAvailability}
+              onDownload={ai.triggerDownload}
             />
 
             <ClipSettings
@@ -382,37 +375,22 @@ function App() {
                   <span className='text-base'>✨</span>
                 </button>
               ) : (
-                <>
-                  <button
-                    className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-deep)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-accent-glow transition hover:-translate-y-0.5 hover:shadow-accent-glow-hover active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
-                    onClick={handleClipWithoutAI}
-                    disabled={isLoading}
-                  >
-                    <span>
-                      {clip.isExtracting
-                        ? 'Extracting...'
-                        : clip.isSaving
-                          ? 'Saving...'
+                <button
+                  className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-deep)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-accent-glow transition hover:-translate-y-0.5 hover:shadow-accent-glow-hover active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
+                  onClick={handleClipWithoutAI}
+                  disabled={isLoading || ai.status === 'downloading'}
+                >
+                  <span>
+                    {clip.isExtracting
+                      ? 'Extracting...'
+                      : clip.isSaving
+                        ? 'Saving...'
+                        : ai.status === 'downloading'
+                          ? 'Model Downloading...'
                           : 'Save Clip'}
-                    </span>
-                    <span className='text-base'>📎</span>
-                  </button>
-                  {ai.status === 'downloading' && (
-                    <button
-                      className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-bg-tertiary px-4 py-2.5 text-[13px] font-medium text-text-secondary transition hover:bg-bg-primary active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
-                      onClick={handleClip}
-                      disabled={isLoading}
-                      title='Model will be downloaded (~1-2 GB). This may take several minutes.'
-                    >
-                      <span>
-                        {isSummarizing
-                          ? 'Downloading model & summarizing...'
-                          : 'Try with AI (will download model)'}
-                      </span>
-                      <span className='text-xs'>⬇️</span>
-                    </button>
-                  )}
-                </>
+                  </span>
+                  <span className='text-base'>📎</span>
+                </button>
               )}
             </div>
           </>
