@@ -160,24 +160,6 @@ You should see **`"available"`** once the model is ready. If you see **`"downloa
   - Keep Chrome open on `chrome://components` and try **Check for update** again after a minute
   - Check `chrome://on-device-internals` → **Model Status** for progress/errors
 
-## Changelog
-
-### v0.3.0
-- **New: Review Synthesis** - Analyze Amazon product reviews with AI
-  - Automatic detection of Amazon product and review pages
-  - Progressive batching for analyzing up to 20 reviews
-  - Structured output: verdict, pros, cons, quality alerts, sentiment score
-  - Export as markdown or save to vault
-- **Improved: Loading screen** - New branded loading experience with Engram logo
-- **Improved: Code organization** - Centralized AI prompts for easier maintenance
-- **Removed: Page info badge** - Cleaner UI without redundant page information
-
-### v0.2.0
-- Initial beta release
-- Article clipping with AI summaries
-- Direct file saving to local folders
-- Smart templates
-
 ## License
 
 MIT
