@@ -9,6 +9,14 @@ import {
 type OutputLanguage = 'en';
 const OUTPUT_LANGUAGE: OutputLanguage = 'en';
 
+// Download progress callback types
+export interface DownloadProgress {
+  loaded: number;
+  total: number;
+}
+
+export type DownloadProgressCallback = (progress: DownloadProgress) => void;
+
 // Declare global AI APIs
 declare global {
   interface Window {
@@ -21,6 +29,12 @@ declare global {
       create: (options?: {
         systemPrompt?: string;
         outputLanguage?: OutputLanguage;
+        monitor?: (monitor: {
+          addEventListener: (
+            event: 'downloadprogress',
+            callback: (e: { loaded: number; total: number }) => void,
+          ) => void;
+        }) => void;
       }) => Promise<AISession>;
     };
     // Old ai.languageModel API
@@ -33,7 +47,11 @@ declare global {
   }
 }
 
-export type AIAvailability = 'available' | 'after-download' | 'unavailable';
+export type AIAvailability =
+  | 'available'
+  | 'after-download'
+  | 'downloading'
+  | 'unavailable';
 
 export async function checkAIAvailability(): Promise<AIAvailability> {
   console.log('[Engram AI] Checking availability...');
@@ -48,7 +66,8 @@ export async function checkAIAvailability(): Promise<AIAvailability> {
         outputLanguage: OUTPUT_LANGUAGE,
       });
       console.log('[Engram AI] LanguageModel.availability result:', result);
-      if (result === 'available') return 'available';
+      if (result === 'available' || result === 'readily') return 'available';
+      if (result === 'downloading') return 'downloading';
       if (result === 'downloadable') return 'after-download';
       return 'unavailable';
     }
@@ -67,6 +86,44 @@ export async function checkAIAvailability(): Promise<AIAvailability> {
   } catch (err) {
     console.error('[Engram AI] Availability check error:', err);
     return 'unavailable';
+  }
+}
+
+/**
+ * Download the Gemini Nano model with progress tracking.
+ * Returns true if download succeeded, false otherwise.
+ */
+export async function downloadModel(
+  onProgress?: DownloadProgressCallback,
+): Promise<boolean> {
+  console.log('[Engram AI] Starting model download...');
+
+  try {
+    if (!window.LanguageModel?.create) {
+      console.log('[Engram AI] LanguageModel API not available for download');
+      return false;
+    }
+
+    // Create a session to trigger the download
+    const session = await window.LanguageModel.create({
+      outputLanguage: OUTPUT_LANGUAGE,
+      monitor: (monitor) => {
+        monitor.addEventListener('downloadprogress', (e) => {
+          console.log(
+            `[Engram AI] Download progress: ${e.loaded}/${e.total} bytes`,
+          );
+          onProgress?.({ loaded: e.loaded, total: e.total });
+        });
+      },
+    });
+
+    // Session created successfully means model is ready
+    session.destroy();
+    console.log('[Engram AI] Model download complete');
+    return true;
+  } catch (err) {
+    console.error('[Engram AI] Model download error:', err);
+    return false;
   }
 }
 
