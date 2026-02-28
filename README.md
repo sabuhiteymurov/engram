@@ -2,6 +2,43 @@
 
 Local-first AI web clipper browser extension - clip, summarize, and organize web content directly to markdown files without sending data to the cloud.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="public/screenshots/engram-1.jpg" alt="AI Summary" width="100%">
+      <br>
+      <b>AI Summary</b>
+      <br>
+      <sub>Summarize any article with on-device AI</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="public/screenshots/engram-2.jpg" alt="Review Synthesis" width="100%">
+      <br>
+      <b>Review Synthesis</b>
+      <br>
+      <sub>Analyze Amazon reviews with pros, cons & sentiment score</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="public/screenshots/engram-3.jpg" alt="Smart Templates" width="100%">
+      <br>
+      <b>Smart Templates</b>
+      <br>
+      <sub>Auto-extract metadata with pre-built templates</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="public/screenshots/engram-4.jpg" alt="Multiple Clip Methods" width="100%">
+      <br>
+      <b>Multiple Clip Methods</b>
+      <br>
+      <sub>Browser action, keyboard shortcut, or context menu</sub>
+    </td>
+  </tr>
+</table>
+
 ## Features
 
 - **One-Click Article Clipping** - Browser action, keyboard shortcut (Ctrl+Shift+E), context menus
@@ -21,6 +58,7 @@ When you visit an Amazon product page, Engram automatically detects it and offer
 4. **Export** - Copy as markdown or save directly to your vault
 
 Supported pages:
+
 - Amazon product pages (`amazon.com/dp/...`)
 - Amazon review pages (`amazon.com/product-reviews/...`)
 
@@ -129,7 +167,6 @@ Chrome sometimes won't download the model until the relevant flags are enabled a
 ### 3) Verify the model is installed (recommended)
 
 - **Check internal status UI**:
-
   - Open `chrome://on-device-internals`
   - Look for **Model Status** and confirm it's downloaded/ready
 
