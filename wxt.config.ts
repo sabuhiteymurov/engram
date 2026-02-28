@@ -29,7 +29,7 @@ export default defineConfig({
   manifest: {
     name: 'Engram',
     description: 'Local-first AI web clipper.',
-    version: '0.3.1',
+    version: '0.3.2',
     options_ui: {
       page: 'options.html',
       open_in_tab: true,
