@@ -27,9 +27,8 @@ export default defineConfig({
   },
 
   manifest: {
-    name: 'Engram BETA',
-    description:
-      'Local-first AI web clipper. THIS EXTENSION IS FOR BETA TESTING',
+    name: 'Engram',
+    description: 'Local-first AI web clipper.',
     version: '0.3.1',
     options_ui: {
       page: 'options.html',
