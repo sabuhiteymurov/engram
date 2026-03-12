@@ -88,7 +88,7 @@ export function HistoryView({
       </div>
 
       {/* Scrollable list */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1 py-1">
         {entries.map((entry) => (
           <HistoryItem key={entry.id} entry={entry} onRemove={onRemove} />
         ))}
