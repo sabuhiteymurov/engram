@@ -29,6 +29,7 @@ interface CurrentPage {
   title: string;
   url: string;
   siteName: string;
+  favicon: string;
 }
 
 type ActiveTab = 'clip' | 'history';
@@ -72,6 +73,7 @@ function App() {
         currentPage?.title || 'Untitled',
         currentPage?.url || '',
         selectedTemplate.name,
+        currentPage?.favicon,
       );
       await addHistoryEntry(entry);
 
@@ -84,6 +86,12 @@ function App() {
         }).catch(() => {});
       }
 
+      // Heartbeat so the background watchdog knows the popup is still alive.
+      await browser.storage.local.set({ pendingClipHeartbeat: Date.now() });
+      const heartbeatId = setInterval(() => {
+        browser.storage.local.set({ pendingClipHeartbeat: Date.now() });
+      }, 4_000);
+
       try {
         // Extract article
         const article = await clip.extract();
@@ -93,7 +101,7 @@ function App() {
 
         // Store article data immediately so background can attempt AI summary
         // if the popup closes during the (slow) AI generation step below.
-        browser.storage.local.set({
+        await browser.storage.local.set({
           pendingClipData: {
             article: {
               metadata: article.metadata,
@@ -128,7 +136,7 @@ function App() {
         );
 
         // Update with complete markdown (includes AI summary if generated).
-        browser.storage.local.set({
+        await browser.storage.local.set({
           pendingClipData: { markdown: result.markdown, filename: result.filename },
         });
 
@@ -149,7 +157,11 @@ function App() {
         });
         setStatusMessage(`Error: ${errMsg}`);
       } finally {
-        browser.storage.local.remove('pendingClipData');
+        clearInterval(heartbeatId);
+        await browser.storage.local.remove([
+          'pendingClipData',
+          'pendingClipHeartbeat',
+        ]);
       }
     },
     [ai, clip, selectedTemplate, vault.vaultHandle, currentPage],
@@ -174,6 +186,7 @@ function App() {
           title: tab.title,
           url: tab.url,
           siteName: url.hostname.replace('www.', ''),
+          favicon: tab.favIconUrl || '',
         });
       }
       if (tab?.id !== undefined) {
@@ -297,6 +310,7 @@ function App() {
       previewResult.article.metadata.title,
       previewResult.article.metadata.url,
       selectedTemplate.name,
+      currentPage?.favicon,
     );
     await addHistoryEntry(entry);
 
@@ -307,6 +321,11 @@ function App() {
         historyId: entry.id,
       }).catch(() => {});
     }
+
+    // Stash markdown for background fallback
+    await browser.storage.local.set({
+      pendingClipData: { markdown: previewResult.markdown, filename: previewResult.filename },
+    });
 
     try {
       const saveResult = await clip.save(previewResult, vault.vaultHandle!);
@@ -334,9 +353,9 @@ function App() {
       });
       setStatusMessage(`Error: ${errMsg}`);
     } finally {
-      // No explicit "done" signal needed — the watchdog checks entry status
+      await browser.storage.local.remove(['pendingClipData', 'pendingClipHeartbeat']);
     }
-  }, [previewResult, vault, clip, selectedTemplate]);
+  }, [previewResult, vault, clip, selectedTemplate, currentPage]);
 
   // Loading state - show branded loader
   if (isInitializing) {

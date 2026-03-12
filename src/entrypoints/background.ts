@@ -114,6 +114,7 @@ export default defineBackground(() => {
         tab.title || 'Untitled Page',
         tab.url || '',
         'Article',
+        tab.favIconUrl,
       );
       await addHistoryEntry(entry);
 
@@ -152,6 +153,7 @@ export default defineBackground(() => {
         tab.title || 'Untitled Page',
         tab.url || '',
         'Selection',
+        tab.favIconUrl,
       );
       await addHistoryEntry(entry);
 
@@ -206,28 +208,47 @@ export default defineBackground(() => {
   });
 
   // ── Popup-close fallback ──
-  // The popup registers a watchdog BEFORE extraction (via content-script relay).
-  // After 15 s the watchdog checks the history entry:
-  //   • status changed → popup completed it, nothing to do.
-  //   • still "processing" → popup is gone, background takes over.
+  // The popup writes a heartbeat to storage while it's working.
+  // The watchdog polls every few seconds; once the heartbeat goes stale
+  // (popup closed) AND the entry is still "processing", background takes over.
 
   function scheduleClipWatchdog(historyId: string, tabId: number): void {
-    setTimeout(async () => {
+    const INITIAL_DELAY = 10_000;
+    const POLL_INTERVAL = 5_000;
+    const HEARTBEAT_STALE = 10_000;
+    const MAX_WAIT = 5 * 60 * 1000;
+    const startTime = Date.now();
+
+    const check = async () => {
       try {
         const history = await getHistory();
         const entry = history.find((e) => e.id === historyId);
 
-        if (!entry || entry.status !== 'processing') {
-          console.log('[Engram BG] Watchdog: clip already resolved:', historyId, entry?.status);
+        if (!entry || entry.status !== 'processing') return;
+
+        if (Date.now() - startTime >= MAX_WAIT) {
+          await completePendingClip(historyId, tabId);
           return;
         }
 
-        console.log('[Engram BG] Watchdog: still processing after timeout, taking over:', historyId);
+        const { pendingClipHeartbeat } = await browser.storage.local.get(
+          'pendingClipHeartbeat',
+        );
+        if (
+          pendingClipHeartbeat &&
+          Date.now() - (pendingClipHeartbeat as number) < HEARTBEAT_STALE
+        ) {
+          setTimeout(check, POLL_INTERVAL);
+          return;
+        }
+
         await completePendingClip(historyId, tabId);
       } catch (err) {
         console.error('[Engram BG] Watchdog error:', err);
       }
-    }, 15_000);
+    };
+
+    setTimeout(check, INITIAL_DELAY);
   }
 
   // Try to generate an AI summary using the LanguageModel API in the service worker.
@@ -372,7 +393,10 @@ export default defineBackground(() => {
       }
 
       await saveViaDownloads(markdown, filename);
-      await browser.storage.local.remove('pendingClipData');
+      await browser.storage.local.remove([
+        'pendingClipData',
+        'pendingClipHeartbeat',
+      ]);
 
       const fileSize = new TextEncoder().encode(markdown).byteLength;
       await updateHistoryEntry(historyId, { status: 'success', fileSize });

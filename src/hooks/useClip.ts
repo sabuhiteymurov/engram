@@ -155,20 +155,12 @@ export function useClip(): UseClipReturn {
       try {
         const settings = await getSettings();
 
-        // Race against a timeout so a hanging FS call never blocks forever
-        const savePromise = saveMarkdownFile(
+        await saveMarkdownFile(
           vaultHandle,
           settings.vault.defaultFolder,
           clipResult.filename,
           clipResult.markdown,
         );
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error('Save timed out after 15 seconds. The export folder may be inaccessible — try re-selecting it in Settings.')),
-            15_000,
-          ),
-        );
-        await Promise.race([savePromise, timeoutPromise]);
 
         return { ok: true };
       } catch (err) {

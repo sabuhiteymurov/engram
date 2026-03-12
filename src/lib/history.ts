@@ -19,6 +19,10 @@ export async function getHistory(): Promise<HistoryEntry[]> {
   return (result[HISTORY_KEY] as HistoryEntry[] | undefined) ?? [];
 }
 
+export async function setHistory(entries: HistoryEntry[]): Promise<void> {
+  await browser.storage.local.set({ [HISTORY_KEY]: entries });
+}
+
 export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
   const history = await getHistory();
   history.unshift(entry);
@@ -51,20 +55,13 @@ export function createHistoryEntry(
   title: string,
   url: string,
   template: string,
+  favicon?: string,
 ): HistoryEntry {
-  let favicon = '';
-  try {
-    const parsed = new URL(url);
-    favicon = `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=32`;
-  } catch {
-    // invalid URL, leave favicon empty
-  }
-
   return {
     id: crypto.randomUUID(),
     title,
     url,
-    favicon,
+    favicon: favicon || '',
     template,
     status: 'processing',
     clippedAt: new Date().toISOString(),
