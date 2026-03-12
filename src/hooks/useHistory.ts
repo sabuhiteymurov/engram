@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   getHistory,
+  setHistory,
   removeHistoryEntry,
   clearHistory,
   type HistoryEntry,
@@ -42,7 +43,7 @@ export function useHistory(): UseHistoryReturn {
         });
 
         if (hasStale) {
-          await browser.storage.local.set({ clipHistory: cleaned });
+          await setHistory(cleaned);
         }
 
         setEntries(cleaned);

@@ -71,8 +71,28 @@ export function extractArticle(doc: Document, url: string): ExtractedArticle | n
     return null;
   }
 
+  let content = article.content || '';
+
+  // Readability's heuristics can strip the article's hero/lead image when it
+  // lives in a separate DOM section from the body text (common on Medium, Substack, etc.).
+  // Recover it from og:image metadata if the extracted content doesn't already lead with one.
+  const ogImage =
+    doc.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
+    doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
+  if (ogImage) {
+    // Content is wrapped in <div id="readability-page-1" class="page">…</div>
+    const inner = content.replace(/^<div[^>]*>\s*/i, '').trimStart();
+    if (!/^<(figure|img|picture)/i.test(inner)) {
+      const src = ogImage.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      content = content.replace(
+        /^(<div[^>]*>)/i,
+        `$1<figure><img src="${src}" alt="" /></figure>\n`,
+      );
+    }
+  }
+
   // Sanitize HTML content
-  const sanitizedContent = DOMPurify.sanitize(article.content || '', {
+  const sanitizedContent = DOMPurify.sanitize(content, {
     ALLOWED_TAGS: [
       'p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       'ul', 'ol', 'li', 'blockquote', 'pre', 'code',

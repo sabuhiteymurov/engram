@@ -114,9 +114,10 @@ export async function saveMarkdownFile(
   filename: string,
   content: string
 ): Promise<void> {
-  console.log('[Engram FS] Step 1: Verifying directory handle permission...');
-  const perm = await directoryHandle.queryPermission({ mode: 'readwrite' });
-  console.log('[Engram FS] Permission status:', perm);
+  let perm = await directoryHandle.queryPermission({ mode: 'readwrite' });
+  if (perm === 'prompt') {
+    perm = await directoryHandle.requestPermission({ mode: 'readwrite' });
+  }
   if (perm !== 'granted') {
     throw new DOMException(
       `Write permission is "${perm}". Please re-grant access to the export folder in Settings.`,
@@ -124,7 +125,6 @@ export async function saveMarkdownFile(
     );
   }
 
-  console.log('[Engram FS] Step 2: Getting/creating folder:', folderPath || '(root)');
   const folder = await getOrCreateFolder(directoryHandle, folderPath);
 
   const sanitizedFilename = sanitizeFilename(filename);
@@ -132,20 +132,14 @@ export async function saveMarkdownFile(
     ? sanitizedFilename
     : `${sanitizedFilename}.md`;
 
-  console.log('[Engram FS] Step 3: Getting file handle:', fullFilename);
   const fileHandle = await folder.getFileHandle(fullFilename, { create: true });
-
-  console.log('[Engram FS] Step 4: Creating writable stream...');
   const writable = await fileHandle.createWritable();
 
   try {
-    console.log('[Engram FS] Step 5: Writing content (%d bytes)...', content.length);
     await writable.write(content);
   } finally {
-    console.log('[Engram FS] Step 6: Closing writable...');
     await writable.close();
   }
-  console.log('[Engram FS] Done — file saved successfully');
 }
 
 export async function listFolders(
