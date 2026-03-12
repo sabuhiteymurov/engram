@@ -47,6 +47,7 @@ Local-first AI web clipper browser extension - clip, summarize, and organize web
 - **Direct File Saving** - Save markdown files directly to any folder using File System Access API (works great with Obsidian, Logseq, or any markdown-based workflow)
 - **Smart Templates** - Pre-built templates for articles, recipes, research papers, videos, documentation, threads
 - **Metadata Extraction** - Auto-detect author, published date, reading time, tags
+- **Clip History** - View past clips with live status tracking, remove individual items, or clear all. History is stored exclusively in `chrome.storage.local` on-device. **No clip history is ever sent to a cloud server or third-party service.**
 
 ## Review Synthesis
 
@@ -92,16 +93,20 @@ engram-web-extension/
 │   │       ├── main.tsx
 │   │       └── style.css
 │   ├── components/            # React UI components
+│   │   ├── HistoryView.tsx      # Clip history list view
+│   │   ├── HistoryItem.tsx      # Individual history entry
 │   │   ├── ReviewSynthesis.tsx  # Review synthesis results panel
 │   │   ├── Spinner.tsx          # Loading states
 │   │   └── ...
 │   ├── hooks/                 # React hooks
+│   │   ├── useHistory.ts         # History state & storage listener
 │   │   ├── useReviewSynthesis.ts  # Review synthesis orchestration
 │   │   ├── useVault.ts
 │   │   ├── useClip.ts
 │   │   └── useAI.ts
 │   ├── lib/                   # Core logic
 │   │   ├── ai.ts              # AI session management & synthesis
+│   │   ├── history.ts         # Clip history (chrome.storage.local)
 │   │   ├── prompts.ts         # Centralized AI prompts
 │   │   ├── reviewExtractor.ts # Amazon review extraction
 │   │   ├── extractor.ts       # Article extraction

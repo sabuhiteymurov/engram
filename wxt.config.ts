@@ -34,7 +34,7 @@ export default defineConfig({
       page: 'options.html',
       open_in_tab: true,
     },
-    permissions: ['activeTab', 'storage', 'contextMenus', 'scripting'],
+    permissions: ['activeTab', 'storage', 'contextMenus', 'scripting', 'downloads'],
     commands: {
       _execute_action: {
         suggested_key: {
