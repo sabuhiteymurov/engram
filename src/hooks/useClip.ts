@@ -26,7 +26,7 @@ interface UseClipReturn {
   save: (
     result: ClipResult,
     vaultHandle: FileSystemDirectoryHandle,
-  ) => Promise<boolean>;
+  ) => Promise<{ ok: boolean; errorMessage?: string }>;
   reset: () => void;
 }
 
@@ -148,25 +148,48 @@ export function useClip(): UseClipReturn {
     async (
       clipResult: ClipResult,
       vaultHandle: FileSystemDirectoryHandle,
-    ): Promise<boolean> => {
+    ): Promise<{ ok: boolean; errorMessage?: string }> => {
       setIsSaving(true);
       setError(null);
 
       try {
         const settings = await getSettings();
 
-        await saveMarkdownFile(
+        // Race against a timeout so a hanging FS call never blocks forever
+        const savePromise = saveMarkdownFile(
           vaultHandle,
           settings.vault.defaultFolder,
           clipResult.filename,
           clipResult.markdown,
         );
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Save timed out after 15 seconds. The export folder may be inaccessible — try re-selecting it in Settings.')),
+            15_000,
+          ),
+        );
+        await Promise.race([savePromise, timeoutPromise]);
 
-        return true;
+        return { ok: true };
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to save';
+        console.error('[Engram] Save failed:', err);
+        let message = 'Failed to save';
+        if (err instanceof DOMException) {
+          console.error('[Engram] DOMException name:', err.name, 'message:', err.message);
+          if (err.name === 'NotFoundError') {
+            message =
+              'Export folder not found. It may have been moved or deleted. Please select a new folder in Settings.';
+          } else if (err.name === 'NotAllowedError') {
+            message =
+              'Permission denied. Please grant access to the export folder.';
+          } else {
+            message = err.message || 'Failed to write file';
+          }
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
         setError(message);
-        return false;
+        return { ok: false, errorMessage: message };
       } finally {
         setIsSaving(false);
       }

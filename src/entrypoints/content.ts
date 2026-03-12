@@ -1,7 +1,10 @@
 // Engram Content Script - Article Extraction (runs in ISOLATED world)
-import { extractArticle, extractSelection } from '../lib/extractor';
+import { extractArticle } from '../lib/extractor';
 import { extractProductPage, detectPageType } from '../lib/reviewExtractor';
-import type { ExtractedArticle, ExtractedProductPage, PageType } from '../lib/types';
+import { convertToMarkdown } from '../lib/markdown';
+import { generateFilename } from '../lib/filesystem';
+import { DEFAULT_TEMPLATES, findMatchingTemplate } from '../lib/templates';
+import type { ExtractedArticle, ExtractedProductPage } from '../lib/types';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -22,26 +25,45 @@ export default defineContentScript({
         return true; // Keep channel open for async response
       }
 
-      if (message.action === 'clipPage') {
-        handleClipPage();
-        return false;
-      }
-
-      if (message.action === 'clipSelection') {
-        handleClipSelection(message.selectedText);
-        return false;
-      }
-
-      if (message.action === 'getSelection') {
-        const selection = extractSelection();
-        sendResponse({ selection });
-        return false;
+      if (message.action === 'extractAndConvert') {
+        handleExtractAndConvert().then(sendResponse);
+        return true;
       }
 
       if (message.action === 'getPageType') {
         const pageType = detectPageType(window.location.href);
         sendResponse({ pageType });
         return false;
+      }
+
+      // Relay clip-watch registration from popup to background.
+      // Popup → background messaging can fail in dev mode, so the popup
+      // sends through the content script instead.
+      if (message.action === 'registerClipWatch') {
+        browser.runtime
+          .sendMessage({
+            action: 'watchPendingClip',
+            historyId: message.historyId,
+          })
+          .then(() => sendResponse({ ok: true }))
+          .catch((err: unknown) => {
+            console.warn('[Engram Content] Failed to relay clip watch:', err);
+            sendResponse({ ok: false });
+          });
+        return true;
+      }
+
+      // Background sends article data + AI summary for markdown conversion.
+      // Used when popup closed mid-clip and background generated the summary.
+      if (message.action === 'convertWithSummary') {
+        const { article, summary, templateId } = message as {
+          action: string;
+          article: ExtractedArticle;
+          summary: string | null;
+          templateId?: string;
+        };
+        handleConvertWithSummary(article, summary, templateId).then(sendResponse);
+        return true;
       }
 
       if (message.action === 'extractProductPage') {
@@ -127,25 +149,73 @@ async function handleExtractArticle(): Promise<{
   }
 }
 
-async function handleClipPage(): Promise<void> {
-  await browser.runtime.sendMessage({ action: 'openPopup' });
-}
+async function handleExtractAndConvert(): Promise<{
+  success: boolean;
+  data?: { markdown: string; filename: string };
+  error?: string;
+}> {
+  try {
+    const article = extractArticle(document, window.location.href);
+    if (!article) {
+      return {
+        success: false,
+        error: 'Could not extract article content from this page',
+      };
+    }
 
-async function handleClipSelection(selectedText?: string): Promise<void> {
-  const text = selectedText || extractSelection();
-  if (!text) {
-    console.log('[Engram Content] No text selected');
-    return;
+    const template = findMatchingTemplate(
+      window.location.href,
+      DEFAULT_TEMPLATES,
+    );
+    const clipped = convertToMarkdown(article, null, [], [], template);
+    const filename = generateFilename(
+      '{{date}} {{title}}',
+      article.metadata.title,
+    );
+
+    return {
+      success: true,
+      data: { markdown: clipped.markdown, filename },
+    };
+  } catch (error) {
+    console.error('[Engram Content] Extract and convert error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
   }
-
-  await browser.storage.local.set({
-    pendingClip: {
-      type: 'selection',
-      text,
-      url: window.location.href,
-      title: document.title,
-    },
-  });
-
-  await browser.runtime.sendMessage({ action: 'openPopup' });
 }
+
+async function handleConvertWithSummary(
+  article: ExtractedArticle,
+  summary: string | null,
+  templateId?: string,
+): Promise<{
+  success: boolean;
+  data?: { markdown: string; filename: string };
+  error?: string;
+}> {
+  try {
+    const template = templateId
+      ? DEFAULT_TEMPLATES.find((t) => t.id === templateId) || DEFAULT_TEMPLATES[0]
+      : findMatchingTemplate(window.location.href, DEFAULT_TEMPLATES);
+
+    const clipped = convertToMarkdown(article, summary, [], [], template);
+    const filename = generateFilename(
+      '{{date}} {{title}}',
+      article.metadata.title,
+    );
+
+    return {
+      success: true,
+      data: { markdown: clipped.markdown, filename },
+    };
+  } catch (error) {
+    console.error('[Engram Content] Convert with summary error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
