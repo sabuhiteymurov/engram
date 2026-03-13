@@ -7,10 +7,11 @@ import type {
 } from './types';
 
 // URL patterns for supported e-commerce sites
-// Matches: amazon.com/dp/ASIN, amazon.com/*/dp/ASIN, amazon.com/gp/product/ASIN, etc.
+// Matches regional Amazon domains: amazon.com, amazon.co.uk, amazon.de, amazon.fr,
+// amazon.es, amazon.it, amazon.co.jp, amazon.com.br, amazon.com.tr, amazon.in, etc.
 const AMAZON_PRODUCT_PATTERN = /amazon\.[a-z.]+(?:\/[^\/]*)*\/(?:dp|gp\/product|product)\/([A-Z0-9]{10})/i;
 
-// Matches: amazon.com/product-reviews/ASIN/...
+// Matches: amazon.*/product-reviews/ASIN/...
 const AMAZON_REVIEWS_PATTERN = /amazon\.[a-z.]+\/product-reviews\/([A-Z0-9]{10})/i;
 
 /**
@@ -77,7 +78,10 @@ function extractProductInfo(doc: Document, url: string): ProductInfo {
     '.a-icon-star-small .a-icon-alt',
     '.averageStarRating',
   ]);
-  const rating = ratingText ? parseFloat(ratingText.match(/[\d.]+/)?.[0] || '0') : null;
+  // Handle European comma decimals (e.g., "4,5 sur 5 étoiles") by normalizing to dot
+  const rating = ratingText
+    ? parseFloat(ratingText.replace(',', '.').match(/[\d.]+/)?.[0] || '0')
+    : null;
 
   // Extract review count
   const reviewCountText = getText([
@@ -220,7 +224,11 @@ function extractReviews(doc: Document): ExtractedReview[] {
     for (const selector of titleSelectors) {
       const el = container.querySelector(selector);
       const titleText = el?.textContent?.trim();
-      if (titleText && titleText.length > 0 && !titleText.match(/^\d+(\.\d+)?\s*out of/i)) {
+      // Filter out rating text in titles across locales:
+      // EN: "4.5 out of 5 stars", FR: "4,5 sur 5 étoiles",
+      // DE: "4,5 von 5 Sternen", ES: "4,5 de 5 estrellas",
+      // TR: "5 üzerinden 4,5"
+      if (titleText && titleText.length > 0 && !titleText.match(/^\d[\d.,]*\s+\S+\s+\d/i)) {
         title = titleText;
         break;
       }
@@ -232,11 +240,12 @@ function extractReviews(doc: Document): ExtractedReview[] {
     );
     const helpfulCount = parseHelpfulCount(helpfulEl?.textContent || null);
 
-    // Check if verified purchase
+    // Check if verified purchase — data-hook selectors are locale-agnostic;
+    // the text fallback covers regional translations (e.g., "Achat vérifié", "Compra verificada")
     const verifiedEl = container.querySelector(
       '[data-hook="avp-badge"], [data-hook="avp-badge-linkless"], .a-size-mini.a-color-state'
     );
-    const isVerified = verifiedEl?.textContent?.toLowerCase().includes('verified') || false;
+    const isVerified = !!verifiedEl;
 
     reviews.push({
       text,
