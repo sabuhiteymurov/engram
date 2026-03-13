@@ -7,14 +7,14 @@ Local-first AI web clipper browser extension - clip, summarize, and organize web
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="public/screenshots/engram-1.jpg" alt="AI Summary" width="100%">
+      <img src="docs/screenshots/engram-1.jpg" alt="AI Summary" width="100%">
       <br>
       <b>AI Summary</b>
       <br>
       <sub>Summarize any article with on-device AI</sub>
     </td>
     <td width="50%" align="center">
-      <img src="public/screenshots/engram-2.jpg" alt="Review Synthesis" width="100%">
+      <img src="docs/screenshots/engram-2.jpg" alt="Review Synthesis" width="100%">
       <br>
       <b>Review Synthesis</b>
       <br>
@@ -23,14 +23,14 @@ Local-first AI web clipper browser extension - clip, summarize, and organize web
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="public/screenshots/engram-3.jpg" alt="Smart Templates" width="100%">
+      <img src="docs/screenshots/engram-3.jpg" alt="Smart Templates" width="100%">
       <br>
       <b>Smart Templates</b>
       <br>
       <sub>Auto-extract metadata with pre-built templates</sub>
     </td>
     <td width="50%" align="center">
-      <img src="public/screenshots/engram-4.jpg" alt="Multiple Clip Methods" width="100%">
+      <img src="docs/screenshots/engram-4.jpg" alt="Multiple Clip Methods" width="100%">
       <br>
       <b>Multiple Clip Methods</b>
       <br>
@@ -99,6 +99,8 @@ engram-web-extension/
 │   │   ├── Spinner.tsx          # Loading states
 │   │   └── ...
 │   ├── hooks/                 # React hooks
+│   │   ├── useClipOrchestration.ts # Clip flow orchestration
+│   │   ├── usePopupInit.ts        # Popup initialization
 │   │   ├── useHistory.ts         # History state & storage listener
 │   │   ├── useReviewSynthesis.ts  # Review synthesis orchestration
 │   │   ├── useVault.ts
