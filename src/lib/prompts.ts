@@ -18,10 +18,10 @@ export const SYSTEM_PROMPTS = {
     'You suggest relevant tags for articles. Return only lowercase tags separated by commas.',
 
   REVIEW_ANALYZER:
-    'You analyze product reviews. Extract key pros, cons, and quality issues. Be concise. Output JSON only.',
+    'You analyze product reviews. Reviews may be in any language — always output in English. Extract key pros, cons, and quality issues. Be concise. Output JSON only.',
 
   REVIEW_SYNTHESIZER:
-    'You synthesize product review analysis into a final verdict. Be concise and helpful for purchase decisions.',
+    'You synthesize product review analysis into a final verdict. Always output in English. Be concise and helpful for purchase decisions.',
 } as const;
 
 // ============================================

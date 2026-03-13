@@ -6,20 +6,36 @@ import type {
   PageType,
 } from './types';
 
-// URL patterns for supported e-commerce sites
-// Matches: amazon.com/dp/ASIN, amazon.com/*/dp/ASIN, amazon.com/gp/product/ASIN, etc.
-const AMAZON_PRODUCT_PATTERN = /amazon\.[a-z.]+(?:\/[^\/]*)*\/(?:dp|gp\/product|product)\/([A-Z0-9]{10})/i;
+// Path patterns for Amazon product/review pages (applied after hostname validation)
+const AMAZON_PRODUCT_PATH = /(?:\/[^\/]*)*\/(?:dp|gp\/product|product)\/([A-Z0-9]{10})/i;
+const AMAZON_REVIEWS_PATH = /\/product-reviews\/([A-Z0-9]{10})/i;
 
-// Matches: amazon.com/product-reviews/ASIN/...
-const AMAZON_REVIEWS_PATTERN = /amazon\.[a-z.]+\/product-reviews\/([A-Z0-9]{10})/i;
+/**
+ * Check if a URL hostname belongs to Amazon (amazon.* or *.amazon.*)
+ * Matches: amazon.com, www.amazon.co.uk, smile.amazon.de, amazon.com.tr, etc.
+ */
+function isAmazonHost(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    // Match "amazon.<tld>" at a label boundary — hostname is exactly amazon.X
+    // or ends with .amazon.X (e.g., www.amazon.co.uk, smile.amazon.de)
+    return /(?:^|\.)(amazon\.[a-z.]+)$/i.test(hostname);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Detect if the current URL is a supported product page
  */
 export function detectPageType(url: string): PageType {
-  if (AMAZON_PRODUCT_PATTERN.test(url) || AMAZON_REVIEWS_PATTERN.test(url)) {
-    return 'product';
-  }
+  if (!isAmazonHost(url)) return 'article';
+  try {
+    const { pathname } = new URL(url);
+    if (AMAZON_PRODUCT_PATH.test(pathname) || AMAZON_REVIEWS_PATH.test(pathname)) {
+      return 'product';
+    }
+  } catch { /* invalid URL */ }
   return 'article';
 }
 
@@ -27,12 +43,14 @@ export function detectPageType(url: string): PageType {
  * Extract ASIN from Amazon URL (supports product pages and review pages)
  */
 function extractAsin(url: string): string | null {
-  const productMatch = url.match(AMAZON_PRODUCT_PATTERN);
-  if (productMatch) return productMatch[1];
-  
-  const reviewMatch = url.match(AMAZON_REVIEWS_PATTERN);
-  if (reviewMatch) return reviewMatch[1];
-  
+  if (!isAmazonHost(url)) return null;
+  try {
+    const { pathname } = new URL(url);
+    const productMatch = pathname.match(AMAZON_PRODUCT_PATH);
+    if (productMatch) return productMatch[1];
+    const reviewMatch = pathname.match(AMAZON_REVIEWS_PATH);
+    if (reviewMatch) return reviewMatch[1];
+  } catch { /* invalid URL */ }
   return null;
 }
 
@@ -77,7 +95,10 @@ function extractProductInfo(doc: Document, url: string): ProductInfo {
     '.a-icon-star-small .a-icon-alt',
     '.averageStarRating',
   ]);
-  const rating = ratingText ? parseFloat(ratingText.match(/[\d.]+/)?.[0] || '0') : null;
+  // Handle European comma decimals (e.g., "4,5 sur 5 étoiles") by normalizing to dot
+  const rating = ratingText
+    ? parseFloat(ratingText.replace(',', '.').match(/[\d.]+/)?.[0] || '0')
+    : null;
 
   // Extract review count
   const reviewCountText = getText([
@@ -220,7 +241,11 @@ function extractReviews(doc: Document): ExtractedReview[] {
     for (const selector of titleSelectors) {
       const el = container.querySelector(selector);
       const titleText = el?.textContent?.trim();
-      if (titleText && titleText.length > 0 && !titleText.match(/^\d+(\.\d+)?\s*out of/i)) {
+      // Filter out rating text in titles across locales:
+      // EN: "4.5 out of 5 stars", FR: "4,5 sur 5 étoiles",
+      // DE: "4,5 von 5 Sternen", ES: "4,5 de 5 estrellas",
+      // TR: "5 üzerinden 4,5"
+      if (titleText && titleText.length > 0 && !titleText.match(/^\d[\d.,]*\s+\S+\s+\d/i)) {
         title = titleText;
         break;
       }
@@ -232,11 +257,10 @@ function extractReviews(doc: Document): ExtractedReview[] {
     );
     const helpfulCount = parseHelpfulCount(helpfulEl?.textContent || null);
 
-    // Check if verified purchase
-    const verifiedEl = container.querySelector(
-      '[data-hook="avp-badge"], [data-hook="avp-badge-linkless"], .a-size-mini.a-color-state'
+    // Check if verified purchase — data-hook selectors are locale-agnostic
+    const isVerified = !!container.querySelector(
+      '[data-hook="avp-badge"], [data-hook="avp-badge-linkless"]'
     );
-    const isVerified = verifiedEl?.textContent?.toLowerCase().includes('verified') || false;
 
     reviews.push({
       text,
@@ -272,5 +296,5 @@ export function extractProductPage(doc: Document, url: string): ExtractedProduct
  * Check if URL matches Amazon product page pattern (includes review pages)
  */
 export function isAmazonProductUrl(url: string): boolean {
-  return AMAZON_PRODUCT_PATTERN.test(url) || AMAZON_REVIEWS_PATTERN.test(url);
+  return detectPageType(url) === 'product';
 }

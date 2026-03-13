@@ -60,8 +60,8 @@ When you visit an Amazon product page, Engram automatically detects it and offer
 
 Supported pages:
 
-- Amazon product pages (`amazon.com/dp/...`)
-- Amazon review pages (`amazon.com/product-reviews/...`)
+- Amazon product pages (`amazon.*/dp/...`) — all regional domains (`.com`, `.co.uk`, `.de`, `.fr`, `.es`, `.it`, `.co.jp`, `.com.br`, `.com.tr`, `.in`, etc.)
+- Amazon review pages (`amazon.*/product-reviews/...`)
 
 ## Tech Stack
 
