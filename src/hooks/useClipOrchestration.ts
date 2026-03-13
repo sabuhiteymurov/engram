@@ -159,7 +159,7 @@ export function useClipOrchestration(
     setSummary(null);
 
     if (!vault.vaultHandle) {
-      setStatusMessage('Error: Please select a export folder in Settings.');
+      setStatusMessage('Error: Please select an export folder in Settings.');
       return;
     }
 
@@ -180,7 +180,7 @@ export function useClipOrchestration(
     setSummary(null);
 
     if (!vault.vaultHandle) {
-      setStatusMessage('Error: Please select a export folder in Settings.');
+      setStatusMessage('Error: Please select an export folder in Settings.');
       return;
     }
 
@@ -198,6 +198,7 @@ export function useClipOrchestration(
 
   const handlePreview = useCallback(async () => {
     setStatusMessage(null);
+    setSummary(null);
 
     const article = await clip.extract();
     if (!article) {
@@ -228,7 +229,7 @@ export function useClipOrchestration(
     if (!previewResult) return;
 
     if (!vault.vaultHandle) {
-      setStatusMessage('Error: Please select a export folder.');
+      setStatusMessage('Error: Please select an export folder.');
       setShowPreview(false);
       return;
     }
@@ -268,6 +269,11 @@ export function useClipOrchestration(
       },
     });
 
+    await browser.storage.local.set({ pendingClipHeartbeat: Date.now() });
+    const heartbeatId = setInterval(() => {
+      browser.storage.local.set({ pendingClipHeartbeat: Date.now() });
+    }, 4_000);
+
     try {
       const saveResult = await clip.save(previewResult, vault.vaultHandle!);
       setShowPreview(false);
@@ -295,6 +301,7 @@ export function useClipOrchestration(
       });
       setStatusMessage(`Error: ${errMsg}`);
     } finally {
+      clearInterval(heartbeatId);
       await browser.storage.local.remove([
         'pendingClipData',
         'pendingClipHeartbeat',
