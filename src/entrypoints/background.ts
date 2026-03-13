@@ -86,8 +86,9 @@ export default defineBackground(() => {
   async function getBaseBitmap(size: number): Promise<ImageBitmap> {
     const cached = baseBitmapCache.get(size);
     if (cached) return cached;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const response = await fetch((browser.runtime as any).getURL(`/icon/${size}.png`));
+    const iconPath = { 16: '/icon/16.png', 32: '/icon/32.png', 48: '/icon/48.png' } as const;
+    const path = iconPath[size as keyof typeof iconPath];
+    const response = await fetch(browser.runtime.getURL(path));
     const blob = await response.blob();
     const bitmap = await createImageBitmap(blob);
     baseBitmapCache.set(size, bitmap);
@@ -134,14 +135,14 @@ export default defineBackground(() => {
         getIconWithDot(16, color),
         getIconWithDot(32, color),
       ]);
-      browser.action.setIcon({ imageData: { '16': icon16, '32': icon32 }, tabId });
+      await browser.action.setIcon({ imageData: { '16': icon16, '32': icon32 }, tabId });
     } catch (err) {
       console.warn('[Engram BG] Failed to set icon:', err);
     }
   }
 
   function resetIcon(tabId: number) {
-    browser.action.setIcon({ path: { '16': 'icon/16.png', '32': 'icon/32.png', '48': 'icon/48.png' }, tabId });
+    browser.action.setIcon({ path: { '16': 'icon/16.png', '32': 'icon/32.png', '48': 'icon/48.png' }, tabId }).catch(() => {});
   }
 
   async function updateIconForTab(tabId: number, url: string | undefined) {
@@ -174,8 +175,12 @@ export default defineBackground(() => {
   });
 
   browser.tabs.onActivated.addListener(async (activeInfo) => {
-    const tab = await browser.tabs.get(activeInfo.tabId);
-    updateIconForTab(activeInfo.tabId, tab.url);
+    try {
+      const tab = await browser.tabs.get(activeInfo.tabId);
+      updateIconForTab(activeInfo.tabId, tab.url);
+    } catch {
+      // Tab closed between activation and get — no-op
+    }
   });
 
   // Handle context menu clicks — complete the clip entirely in the background
