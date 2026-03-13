@@ -1,11 +1,12 @@
 // Engram Background Service Worker
-import { isAmazonProductUrl } from '../lib/reviewExtractor';
+
 import {
   createHistoryEntry,
   addHistoryEntry,
   updateHistoryEntry,
   getHistory,
 } from '../lib/history';
+import { isAmazonProductUrl } from '../lib/reviewExtractor';
 
 // Inline helpers to avoid importing DOM-dependent modules (Turndown etc.)
 function sanitizeBgFilename(filename: string): string {
@@ -78,32 +79,109 @@ export default defineBackground(() => {
     console.log('Engram: Context menus created');
   });
 
-  // Update badge when tab URL changes
-  browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.url || changeInfo.status === 'complete') {
-      updateBadgeForTab(tabId, tab.url);
-    }
-  });
+  // Icon dot indicator — draws a small colored dot on the extension icon
+  const iconCache = new Map<string, ImageData>();
+  const baseBitmapCache = new Map<number, ImageBitmap>();
 
-  // Update badge when switching tabs
-  browser.tabs.onActivated.addListener(async (activeInfo) => {
-    const tab = await browser.tabs.get(activeInfo.tabId);
-    updateBadgeForTab(activeInfo.tabId, tab.url);
-  });
+  async function getBaseBitmap(size: number): Promise<ImageBitmap> {
+    const cached = baseBitmapCache.get(size);
+    if (cached) return cached;
+    const iconPath = { 16: '/icon/16.png', 32: '/icon/32.png', 48: '/icon/48.png' } as const;
+    const path = iconPath[size as keyof typeof iconPath];
+    const response = await fetch(browser.runtime.getURL(path));
+    const blob = await response.blob();
+    const bitmap = await createImageBitmap(blob);
+    baseBitmapCache.set(size, bitmap);
+    return bitmap;
+  }
 
-  function updateBadgeForTab(tabId: number, url: string | undefined) {
-    if (!url) {
-      browser.action.setBadgeText({ text: '', tabId });
-      return;
-    }
+  async function getIconWithDot(size: number, color: string): Promise<ImageData> {
+    const key = `${color}-${size}`;
+    const cached = iconCache.get(key);
+    if (cached) return cached;
 
-    if (isAmazonProductUrl(url)) {
-      browser.action.setBadgeText({ text: '🛒', tabId });
-      browser.action.setBadgeBackgroundColor({ color: '#7c5cff', tabId });
-    } else {
-      browser.action.setBadgeText({ text: '', tabId });
+    const bitmap = await getBaseBitmap(size);
+    const canvas = new OffscreenCanvas(size, size);
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(bitmap, 0, 0, size, size);
+
+    const dotRadius = Math.max(Math.round(size * 0.15), 2);
+    const padding = Math.round(size * 0.05);
+    const cx = size - dotRadius - padding;
+    const cy = size - dotRadius - padding;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, dotRadius + 1, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a1b1e';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    const imageData = ctx.getImageData(0, 0, size, size);
+    iconCache.set(key, imageData);
+    return imageData;
+  }
+
+  const DOT_GREEN = '#10b981';
+  const DOT_PENDING = '#f59e0b';
+  const clippingTabs = new Set<number>();
+
+  async function setIconWithDot(tabId: number, color: string) {
+    try {
+      const [icon16, icon32] = await Promise.all([
+        getIconWithDot(16, color),
+        getIconWithDot(32, color),
+      ]);
+      await browser.action.setIcon({ imageData: { '16': icon16, '32': icon32 }, tabId });
+    } catch (err) {
+      console.warn('[Engram BG] Failed to set icon:', err);
     }
   }
+
+  function resetIcon(tabId: number) {
+    browser.action.setIcon({ path: { '16': 'icon/16.png', '32': 'icon/32.png', '48': 'icon/48.png' }, tabId }).catch(() => {});
+  }
+
+  async function updateIconForTab(tabId: number, url: string | undefined) {
+    if (clippingTabs.has(tabId)) {
+      await setIconWithDot(tabId, DOT_PENDING);
+    } else if (url && isAmazonProductUrl(url)) {
+      await setIconWithDot(tabId, DOT_GREEN);
+    } else {
+      resetIcon(tabId);
+    }
+  }
+
+  function setClippingState(tabId: number, clipping: boolean) {
+    if (clipping) {
+      clippingTabs.add(tabId);
+      setIconWithDot(tabId, DOT_PENDING);
+    } else {
+      clippingTabs.delete(tabId);
+      // Restore appropriate icon (product dot or default)
+      browser.tabs.get(tabId)
+        .then((tab) => updateIconForTab(tabId, tab.url))
+        .catch(() => resetIcon(tabId));
+    }
+  }
+
+  browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.url || changeInfo.status === 'complete') {
+      updateIconForTab(tabId, tab.url);
+    }
+  });
+
+  browser.tabs.onActivated.addListener(async (activeInfo) => {
+    try {
+      const tab = await browser.tabs.get(activeInfo.tabId);
+      updateIconForTab(activeInfo.tabId, tab.url);
+    } catch {
+      // Tab closed between activation and get — no-op
+    }
+  });
 
   // Handle context menu clicks — complete the clip entirely in the background
   browser.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -190,6 +268,14 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.action === 'openPopup') {
       browser.action.openPopup();
+    }
+
+    // Popup signals clip start/end to show the activity dot on the icon
+    if (message.action === 'setClippingIcon') {
+      const { tabId: tid, clipping } = message as { action: string; tabId: number; clipping: boolean };
+      setClippingState(tid, clipping);
+      sendResponse({ ok: true });
+      return true;
     }
 
     // Content script relays a clip-watch request from the popup.
@@ -320,12 +406,15 @@ export default defineBackground(() => {
       return;
     }
 
+    setClippingState(tabId, true);
+
     try {
       let markdown: string;
       let filename: string;
 
       const stored = await browser.storage.local.get('pendingClipData');
-      const clipData = stored.pendingClipData;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const clipData = stored.pendingClipData as Record<string, any> | undefined;
 
       if (clipData?.markdown) {
         // Stage 2: Complete markdown from popup (includes AI summary)
@@ -408,6 +497,8 @@ export default defineBackground(() => {
             ? err.message
             : 'Clip failed after popup closed',
       });
+    } finally {
+      setClippingState(tabId, false);
     }
   }
 

@@ -73,6 +73,9 @@ export function useClipOrchestration(
             historyId: entry.id,
           })
           .catch(() => {});
+        browser.runtime
+          .sendMessage({ action: 'setClippingIcon', tabId, clipping: true })
+          .catch(() => {});
       }
 
       await browser.storage.local.set({ pendingClipHeartbeat: Date.now() });
@@ -149,6 +152,11 @@ export function useClipOrchestration(
           'pendingClipData',
           'pendingClipHeartbeat',
         ]);
+        if (tabId != null) {
+          browser.runtime
+            .sendMessage({ action: 'setClippingIcon', tabId, clipping: false })
+            .catch(() => {});
+        }
       }
     },
     [ai, clip, selectedTemplate, vault.vaultHandle, currentPage, tabId],

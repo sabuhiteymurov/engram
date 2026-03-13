@@ -120,7 +120,7 @@ function App() {
                 <div className='mt-auto flex flex-col gap-2'>
                   {ai.status === 'available' ? (
                     <button
-                      className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-deep)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-accent-glow transition hover:-translate-y-0.5 hover:shadow-accent-glow-hover active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
+                      className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-deep)_100%)] px-5 py-2 text-sm font-semibold text-white shadow-accent-glow transition hover:-translate-y-0.5 hover:shadow-accent-glow-hover active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
                       onClick={orchestration.handleClip}
                       disabled={orchestration.isLoading}
                     >
@@ -137,7 +137,7 @@ function App() {
                     </button>
                   ) : (
                     <button
-                      className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-deep)_100%)] px-5 py-3 text-sm font-semibold text-white shadow-accent-glow transition hover:-translate-y-0.5 hover:shadow-accent-glow-hover active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
+                      className='inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-deep)_100%)] px-5 py-2 text-sm font-semibold text-white shadow-accent-glow transition hover:-translate-y-0.5 hover:shadow-accent-glow-hover active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
                       onClick={orchestration.handleClipWithoutAI}
                       disabled={
                         orchestration.isLoading || ai.status === 'downloading'
