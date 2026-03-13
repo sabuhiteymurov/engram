@@ -65,6 +65,15 @@ export interface AISession {
   destroy: () => void;
 }
 
+export interface CurrentPage {
+  title: string;
+  url: string;
+  siteName: string;
+  favicon: string;
+}
+
+export type PendingVaultAction = { type: 'clip'; withAI: boolean } | null;
+
 export type ClipMode = 'full' | 'selection';
 
 export interface ClipRequest {
